@@ -1,6 +1,6 @@
 package contest
 
-import "sync"
+import "sync/atomic"
 
 func New() Mutex {
 	return &MyMutex{
@@ -9,42 +9,34 @@ func New() Mutex {
 }
 
 type MyMutex struct {
-	locked int64
+	locked int32
+	count  int64
 	ch     chan struct{}
-	mu     sync.RWMutex
 }
 
 func (m *MyMutex) Lock() {
-	m.mu.Lock()
-	m.locked += 1
-	if m.locked == 1 {
-		m.mu.Unlock()
+	if atomic.CompareAndSwapInt32(&m.locked, 0, 1) {
+		atomic.AddInt64(&m.count, 1)
 	} else {
-		m.mu.Unlock()
+		atomic.AddInt64(&m.count, 1)
 		<-m.ch
 	}
 }
 
 func (m *MyMutex) Unlock() {
-	m.mu.Lock()
-	m.locked -= 1
-	if m.locked == 0 {
-		m.mu.Unlock()
+	if atomic.CompareAndSwapInt64(&m.count, 1, 0) {
+		atomic.AddInt32(&m.locked, -1)
 	} else {
-		m.mu.Unlock()
+		atomic.AddInt64(&m.count, -1)
 		m.ch <- struct{}{}
 	}
 }
 
 func (m *MyMutex) LockChannel() <-chan struct{} {
 	ch := make(chan struct{})
-	m.mu.Lock()
-	if m.locked == 0 {
-		m.locked += 1
-		m.mu.Unlock()
+	if atomic.CompareAndSwapInt32(&m.locked, 0, 1) {
+		atomic.AddInt64(&m.count, 1)
 		close(ch)
-	} else {
-		m.mu.Unlock()
 	}
 	return ch
 }
