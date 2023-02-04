@@ -20,7 +20,7 @@ func (m *MutexImpl) Unlock() {
 
 func (m *MutexImpl) LockChannel() <-chan struct{} {
 	c := make(chan struct{})
-	if m.TryLock() {
+	if m.Mutex.TryLock() {
 		close(c)
 	}
 	return c
